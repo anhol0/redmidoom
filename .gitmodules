@@ -1,3 +1,6 @@
 [submodule "doomgeneric"]
 	path = doomgeneric
 	url = https://github.com/ozkl/doomgeneric.git
+[submodule "thirdparty/ioLibrary_Driver"]
+	path = thirdparty/ioLibrary_Driver
+	url = https://github.com/Wiznet/ioLibrary_Driver.git
