@@ -2,6 +2,5 @@
 build/
 *cache*
 .*
-*test*
 *.json
 *.cmake

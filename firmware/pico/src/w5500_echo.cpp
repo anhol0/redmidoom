@@ -9,7 +9,6 @@
 #include <pico/types.h>
 
 #include "hardware/spi.h"
-#include "pico/stdlib.h"
 
 #include "socket.h"
 #include "wizchip_conf.h"

@@ -37,6 +37,17 @@ target_link_libraries(w5500_echo PRIVATE
     w5500_iolib
 )
 
+add_executable(st7789v_test
+    src/st7789v_test.cpp
+)
+
+target_link_libraries(st7789v_test PRIVATE
+    pico_stdlib
+    hardware_spi
+)
+
 pico_enable_stdio_usb(w5500_echo 1)
 pico_enable_stdio_uart(w5500_echo 0)
 pico_add_extra_outputs(w5500_echo)
+
+pico_add_extra_outputs(st7789v_test)
