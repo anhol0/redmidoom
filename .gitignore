@@ -4,3 +4,4 @@ build/
 .*
 *.json
 *.cmake
+pico_sdk_import.cmake
