@@ -11,16 +11,30 @@
 #include <pico/stdio.h>
 #include <pico/time.h>
 
-constexpr size_t HEADER_LEN = 20;
-constexpr size_t BYTES_PER_PIXEL = 2;
-constexpr size_t FRAMEBUFFER_SIZE = WIDTH * HEIGHT * BYTES_PER_PIXEL;
+constexpr size_t DOOM_WIDTH = 320;
+constexpr size_t DOOM_HEIGHT = 200;
+constexpr size_t RGB565_BYTES_PER_PIXEL = 2;
+
+constexpr size_t HEADER_LEN = 24;
+constexpr size_t FRAMEBUFFER_SIZE =
+    DOOM_WIDTH * DOOM_HEIGHT * RGB565_BYTES_PER_PIXEL;
+
+static uint8_t palette[256 * 2];
+static bool palette_valid = false;
+
+enum PacketType {
+    PACKET_FRAME_STRIPE = 1,
+    PACKET_PALETTE      = 2,
+};
 
 struct Header {
+    uint32_t packet_type;
     uint32_t data_len;
     uint32_t row;
     uint32_t width;
     uint32_t height;
     uint32_t index;
+    // uint32_t pallete_version; - in future
 };
 
 bool parse_packet(
@@ -32,47 +46,85 @@ bool parse_packet(
 		return false;
 	}
 
-    uint32_t data_len = ((uint32_t)buffer[0] << 24) |
-		((uint32_t)buffer[1] << 16) | ((uint32_t)buffer[2] << 8) | buffer[3];
+	uint32_t packet_type =
+	    ((uint32_t)buffer[0] << 24) |
+		((uint32_t)buffer[1] << 16) |
+	    ((uint32_t)buffer[2] << 8)  |
+				   buffer[3];
 
-    uint32_t row = ((uint32_t)buffer[4] << 24) | ((uint32_t)buffer[5] << 16) |
-		((uint32_t)buffer[6] << 8) | buffer[7];
+    uint32_t data_len =
+        ((uint32_t)buffer[4] << 24) |
+		((uint32_t)buffer[5] << 16) |
+		((uint32_t)buffer[6] << 8)  |
+		           buffer[7];
 
-    uint32_t width = ((uint32_t)buffer[8] << 24) | ((uint32_t)buffer[9] << 16) |
-		((uint32_t)buffer[10] << 8) | buffer[11];
+    uint32_t row =
+        ((uint32_t)buffer[8] << 24) |
+        ((uint32_t)buffer[9] << 16) |
+		((uint32_t)buffer[10] << 8) |
+		           buffer[11];
 
-    uint32_t height = ((uint32_t)buffer[12] << 24) |
-		((uint32_t)buffer[13] << 16) | ((uint32_t)buffer[14] << 8) |
-		buffer[15];
+    uint32_t width =
+        ((uint32_t)buffer[12] << 24) |
+        ((uint32_t)buffer[13] << 16) |
+		((uint32_t)buffer[14] << 8)  |
+		           buffer[15];
 
-    uint32_t index = ((uint32_t)buffer[16] << 24) |
-		((uint32_t)buffer[17] << 16) | ((uint32_t)buffer[18] << 8) |
-		buffer[19];
+    uint32_t height =
+        ((uint32_t)buffer[16] << 24) |
+		((uint32_t)buffer[17] << 16) |
+		((uint32_t)buffer[18] << 8)  |
+		           buffer[19];
 
-	if(width != WIDTH || height == 0)
-		return false;
+    uint32_t index =
+        ((uint32_t)buffer[20] << 24) |
+		((uint32_t)buffer[21] << 16) |
+		((uint32_t)buffer[22] << 8)  |
+		           buffer[23];
 
-	if(row >= HEIGHT || height > HEIGHT - row)
-		return false;
+    if (packet_type != PACKET_FRAME_STRIPE &&
+        packet_type != PACKET_PALETTE) {
+        return false;
+    }
 
-	const uint32_t expected_data_len = width * height * 2;
+    if (size != HEADER_LEN + data_len) {
+        return false;
+    }
 
-	if(data_len != expected_data_len)
-		return false;
+    if (packet_type == PACKET_PALETTE) {
+        if (data_len != sizeof(palette)) {
+            return false;
+        }
+    } else {
+        if (!palette_valid ||
+            width != DOOM_WIDTH ||
+            height == 0 ||
+            row >= DOOM_HEIGHT ||
+            height > DOOM_HEIGHT - row) {
+            return false;
+        }
 
-	if(static_cast<uint32_t>(size) != HEADER_LEN + data_len)
-		return false;
+        const uint32_t expected_data_len = width * height;
 
-	header->data_len = data_len;
-	header->row = row;
-	header->width = width;
-	header->height = height;
-	header->index = index;
-	return true;
+        if (data_len != expected_data_len) {
+            return false;
+        }
+    }
+
+    *header = {
+        packet_type,
+        data_len,
+        row,
+        width,
+        height,
+        index,
+    };
+
+    return true;
 }
 
 bool mark_received(uint32_t row, uint32_t* checklist) {
-	if(row >= HEIGHT) {
+	if(row >= DOOM_HEIGHT) {
 		return false;
 	}
 
@@ -94,7 +146,7 @@ int main() {
 	// Initializing the ST7789V display
 	initialize_display();
 
-	uint8_t black_rows[WIDTH * 2 * 2]{};
+	uint8_t black_rows[DOOM_WIDTH * 2 * 2]{};
 
 	for(uint16_t row = 0; row < HEIGHT; row += 2) {
 		write_rgb565(black_rows, sizeof(black_rows), 0, row, WIDTH, 2);
@@ -133,7 +185,7 @@ int main() {
 	uint8_t buffer[1472]; // 1472 bytes is the max size of unfragmented UDP packet
 
 	alignas(4) static uint8_t framebuffer[FRAMEBUFFER_SIZE];
-	static uint32_t recv_rows[(HEIGHT + 31) / 32] = {};
+	static uint32_t recv_rows[(DOOM_HEIGHT + 31) / 32] = {};
 	uint16_t recv_rows_count = 0;
 
 	while(true) {
@@ -148,16 +200,6 @@ int main() {
 			continue;
 		}
 
-		printf(
-			"Received %ld bytes from %u.%u.%u.%u:%u\n",
-			static_cast<long>(received),
-			sender_ip[0],
-			sender_ip[1],
-			sender_ip[2],
-			sender_ip[3],
-			sender_port
-		);
-
 		// Parse packets
 		Header header{0};
 		bool rc = parse_packet(buffer, received, &header);
@@ -165,9 +207,32 @@ int main() {
 		if(!rc)
 		    continue;
 
-		const size_t destination =
-			static_cast<size_t>(header.row) * WIDTH * BYTES_PER_PIXEL;
-		std::memcpy(framebuffer + destination, buffer + HEADER_LEN, header.data_len);
+		if(header.packet_type == PACKET_PALETTE) {
+		    if (header.data_len != sizeof(palette)) {
+                continue;
+			}
+
+			std::memcpy(palette, buffer + HEADER_LEN, sizeof(palette));
+			palette_valid = true;
+
+			std::memset(recv_rows, 0, sizeof(recv_rows));
+			recv_rows_count = 0;
+
+			continue;
+		}
+
+
+
+		const uint8_t *indices = buffer + HEADER_LEN;
+		const size_t first_pixel = static_cast<size_t>(header.row) * DOOM_WIDTH;
+
+		for (size_t i = 0; i < header.data_len; ++i) {
+            const uint8_t index = indices[i];
+            const size_t destination = (first_pixel + i) * 2;
+
+            framebuffer[destination]     = palette[index * 2];
+            framebuffer[destination + 1] = palette[index * 2 + 1];
+		}
 
 		for(uint32_t row = header.row; row < header.row + header.height; ++row) {
 			if(mark_received(row, recv_rows)) {
@@ -175,8 +240,8 @@ int main() {
 			}
 		}
 
-		if(recv_rows_count == HEIGHT) {
-			write_rgb565(framebuffer, sizeof(framebuffer), 0, 0, WIDTH, HEIGHT);
+		if(recv_rows_count == DOOM_HEIGHT) {
+			write_rgb565(framebuffer, sizeof(framebuffer), 0, 20, DOOM_WIDTH, DOOM_HEIGHT);
 			std::memset(recv_rows, 0, sizeof(recv_rows));
 			recv_rows_count = 0;
 		}

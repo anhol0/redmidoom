@@ -26,26 +26,6 @@ target_compile_definitions(w5500_iolib PUBLIC
     _WIZCHIP_=W5500
 )
 
-# Executable itself
-add_executable(w5500_echo
-    src/w5500_echo.cpp
-)
-
-target_link_libraries(w5500_echo PRIVATE
-    pico_stdlib
-    hardware_spi
-    w5500_iolib
-)
-
-add_executable(st7789v_test
-    src/st7789v_test.cpp
-)
-
-target_link_libraries(st7789v_test PRIVATE
-    pico_stdlib
-    hardware_spi
-)
-
 add_executable(image_send_test
     src/st7789v.cpp
     src/w5500.cpp
@@ -57,13 +37,6 @@ target_link_libraries(image_send_test PRIVATE
     hardware_spi
     w5500_iolib
 )
-
-pico_enable_stdio_usb(w5500_echo 1)
-pico_enable_stdio_uart(w5500_echo 0)
-pico_add_extra_outputs(w5500_echo)
-
-
-pico_add_extra_outputs(st7789v_test)
 
 pico_enable_stdio_usb(image_send_test 1)
 pico_enable_stdio_uart(image_send_test 0)
