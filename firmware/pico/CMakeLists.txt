@@ -26,18 +26,18 @@ target_compile_definitions(w5500_iolib PUBLIC
     _WIZCHIP_=W5500
 )
 
-add_executable(image_send_test
+add_executable(picocontroller
     src/st7789v.cpp
     src/w5500.cpp
-    src/image_send_test.cpp
+    src/main.cpp
 )
 
-target_link_libraries(image_send_test PRIVATE
+target_link_libraries(picocontroller PRIVATE
     pico_stdlib
     hardware_spi
     w5500_iolib
 )
 
-pico_enable_stdio_usb(image_send_test 1)
-pico_enable_stdio_uart(image_send_test 0)
-pico_add_extra_outputs(image_send_test)
+pico_enable_stdio_usb(picocontroller 1)
+pico_enable_stdio_uart(picocontroller 0)
+pico_add_extra_outputs(picocontroller)
