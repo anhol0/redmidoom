@@ -1,4 +1,4 @@
-#include "doomgeneric/doomgeneric/doomgeneric.h"
+#include "doomgeneric.h"
 
 
 int main(int argc, char** argv) {
