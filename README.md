@@ -4,7 +4,7 @@ This guide documents how I ported original DOOM 1993 to the AC2100 router.
 Even though this was tested only on that specific router and my personal laptop,  
 every linux-based device with an Ethernet controller should be able to run it.  
 
-[![Watch the demo](https://img.youtube.com/vi/ntFI1urFtuo/maxresdefault.jpg)](https://img.youtube.com/vi/ntFI1urFtuo/maxresdefault.jpg)
+[![Watch the demo](https://img.youtube.com/vi/ntFI1urFtuo/maxresdefault.jpg)](https://youtu.be/ntFI1urFtuo)
 
 ## Architecture
 
