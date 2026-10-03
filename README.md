@@ -4,7 +4,8 @@ This guide documents how I ported original DOOM 1993 to the AC2100 router.
 Even though this was tested only on that specific router and my personal laptop,  
 every linux-based device with an Ethernet controller should be able to run it.  
 
- <video src="https://github.com/anhol0/redmidoom/blob/main/images/out.mp4"/>
+<video src="https://githubusercontent.com" controls width="100%"></video>
+
 ## Architecture
 
 The project relies on a handmade network framebuffer and a Raspberry Pi Pico  
