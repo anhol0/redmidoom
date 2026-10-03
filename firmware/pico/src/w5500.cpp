@@ -87,12 +87,14 @@ bool init_w5500() {
 	// 					 .dns  = { 192, 168, 1, 1 },
 	// 					 .dhcp = NETINFO_STATIC };
 
-	wiz_NetInfo info = { .mac  = { 0xEE, 0x4A, 0x4F, 0xA1, 0x22, 0xDE },
-						 .ip   = { 192, 168, 67, 2 },
-						 .sn   = { 255, 255, 255, 0 },
-						 .gw   = { 0, 0, 0, 0 },
-						 .dns  = { 0, 0, 0, 0 },
-						 .dhcp = NETINFO_STATIC };
+	wiz_NetInfo info = {
+        .mac  = { 0xEE, 0x4A, 0x4F, 0xA1, 0x22, 0xDE },
+        .ip   = { 192, 168, 1, 67 },  // Pico
+        .sn   = { 255, 255, 255, 0 },
+        .gw   = { 192, 168, 1, 1 },   // OpenWrt router
+        .dns  = { 192, 168, 1, 1 },
+        .dhcp = NETINFO_STATIC
+	};
 
 	wizchip_setnetinfo(&info);
 
