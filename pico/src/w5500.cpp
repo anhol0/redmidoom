@@ -1,4 +1,5 @@
 #include "w5500.hpp"
+#include "config.hpp"
 #include "hardware/gpio.h"
 #include <W5500/w5500.h>
 #include <cstdint>
@@ -80,22 +81,7 @@ bool init_w5500() {
 		return false;
 	}
 
-	// wiz_NetInfo info = { .mac  = { 0xEE, 0x4A, 0x4F, 0xA1, 0x22, 0xDE },
-	// 					 .ip   = { 192, 168, 1, 67 },
-	// 					 .sn   = { 255, 255, 255, 0 },
-	// 					 .gw   = { 192, 168, 1, 1 },
-	// 					 .dns  = { 192, 168, 1, 1 },
-	// 					 .dhcp = NETINFO_STATIC };
-
-	wiz_NetInfo info = {
-        .mac  = { 0xEE, 0x4A, 0x4F, 0xA1, 0x22, 0xDE },
-        .ip   = { 192, 168, 1, 67 },  // Pico
-        .sn   = { 255, 255, 255, 0 },
-        .gw   = { 192, 168, 1, 1 },   // OpenWrt router
-        .dns  = { 192, 168, 1, 1 },
-        .dhcp = NETINFO_STATIC
-	};
-
+	wiz_NetInfo info = config::network;
 	wizchip_setnetinfo(&info);
 
 	wiz_NetInfo actual{};

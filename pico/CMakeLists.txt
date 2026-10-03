@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-include(${CMAKE_CURRENT_LIST_DIR}/../../pico_sdk_import.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
 
 project(picoside C CXX ASM)
 
@@ -9,7 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 pico_sdk_init()
 
 set(IOLIB_DIR
-    ${CMAKE_CURRENT_LIST_DIR}/../../thirdparty/ioLibrary_Driver
+    ${CMAKE_CURRENT_LIST_DIR}/thirdparty/ioLibrary_Driver
 )
 
 add_library(w5500_iolib STATIC
