@@ -12,13 +12,17 @@
 
 #include "socket.h"
 #include "wizchip_conf.h"
+#include "keymaps.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <hardware/timer.h>
 #include <pico/stdio.h>
 #include <pico/time.h>
+#include <hardware/gpio.h>
+#include <pico/types.h>
 
 constexpr size_t DOOM_WIDTH = 320;
 constexpr size_t DOOM_HEIGHT = 200;
@@ -28,8 +32,26 @@ constexpr size_t HEADER_LEN = 24;
 constexpr size_t FRAMEBUFFER_SIZE =
     DOOM_WIDTH * DOOM_HEIGHT * RGB565_BYTES_PER_PIXEL;
 
+constexpr uint HEARTBEAT_US = 50'000;
+uint16_t last_sent_state = 0;
+uint64_t last_send_time = 0;
+static bool sent_initial_state = false;
+
+
 static uint8_t palette[256 * 2];
 static bool palette_valid = false;
+
+static constexpr uint BUTTON_PINS[] = {
+    PIN_UP,
+    PIN_DOWN,
+    PIN_LEFT,
+    PIN_RIGHT,
+    PIN_ENTER,
+    PIN_USE,
+    PIN_RUN,
+    PIN_ESC,
+    PIN_FIRE,
+};
 
 enum PacketType {
     PACKET_FRAME_STRIPE = 1,
@@ -45,6 +67,14 @@ struct Header {
     uint32_t index;
     // uint32_t pallete_version; - in future
 };
+
+struct Peer {
+    uint16_t port;
+    uint8_t ip[4];
+};
+
+Peer peer = {0};
+static bool peer_known = false;
 
 bool parse_packet(
 	const uint8_t* buffer,
@@ -149,8 +179,64 @@ bool mark_received(uint32_t row, uint32_t* checklist) {
     return true;
 }
 
+void initialize_buttons()
+{
+    for (uint pin : BUTTON_PINS) {
+        gpio_init(pin);
+        gpio_set_dir(pin, GPIO_IN);
+        gpio_pull_up(pin);
+    }
+}
+
+uint16_t read_buttons() {
+    uint16_t state = 0;
+    constexpr size_t button_count = sizeof(BUTTON_PINS) / sizeof(BUTTON_PINS[0]);
+
+    for(size_t bit = 0; bit < button_count; ++bit) {
+        if (!gpio_get(BUTTON_PINS[bit])) {
+            state |= static_cast<uint16_t>(1u << bit);
+        }
+    }
+    return state;
+}
+
+bool send_button_state(uint16_t state) {
+    uint8_t payload[2] = {
+        static_cast<uint8_t>(state >> 8),
+        static_cast<uint8_t>(state),
+    };
+
+    return sendto(
+        UDP_SOCKET,
+        payload,
+        sizeof(payload),
+        peer.ip,
+        peer.port
+    ) == static_cast<int32_t>(sizeof(payload));
+}
+
+void update_input() {
+    if(!peer_known) {
+        return;
+    }
+    const uint64_t now = time_us_64();
+    const uint16_t state = read_buttons();
+
+    if(!sent_initial_state ||
+       state != last_sent_state ||
+       now - last_send_time >= HEARTBEAT_US) {
+        if (send_button_state(state)) {
+            last_send_time = now;
+            last_sent_state = state;
+            sent_initial_state = true;
+        }
+    }
+}
 
 int main() {
+
+    // Initializing buttons
+    initialize_buttons();
 
 	// Initializing the ST7789V display
 	initialize_display();
@@ -198,11 +284,15 @@ int main() {
 	uint16_t recv_rows_count = 0;
 
 	while(true) {
+	    update_input();
+
 	    // Logging packets recieved
-		uint8_t sender_ip[4]{ 0 };
-		uint16_t sender_port = 0;
 		const int32_t received =
-			recvfrom(UDP_SOCKET, buffer, sizeof(buffer), sender_ip, &sender_port);
+			recvfrom(UDP_SOCKET, buffer, sizeof(buffer), peer.ip, &peer.port);
+
+		if(received > 0) {
+		    peer_known = true;
+		}
 
 		if(received <= 0 || static_cast<size_t>(received) < HEADER_LEN) {
 		    tight_loop_contents();
@@ -230,7 +320,7 @@ int main() {
 			continue;
 		}
 
-
+		update_input();
 
 		const uint8_t *indices = buffer + HEADER_LEN;
 		const size_t first_pixel = static_cast<size_t>(header.row) * DOOM_WIDTH;

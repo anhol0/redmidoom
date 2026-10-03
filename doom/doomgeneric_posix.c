@@ -1,6 +1,8 @@
 #include "doomgeneric/doomgeneric/doomgeneric.h"
 #include "doomtype.h"
+#include "doomkeys.h"
 #include "i_video.h"
+
 #include <stdbool.h>
 #include <time.h>
 #include <stddef.h>
@@ -12,6 +14,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <fcntl.h>
 
 // `DG_GetTicksMs()` using `clock_gettime(CLOCK_MONOTONIC, ...)`
 // `DG_SleepMs()` using `nanosleep()`
@@ -23,7 +26,11 @@
 extern boolean palette_changed;
 extern struct color colors[256];
 
-enum { HEADER_LEN = 24 };
+#define UDP_PORT 5000
+#define UDP_ADDR "192.168.67.2"
+
+enum { HEADER_LEN     = 24 };
+enum { QUEUE_CAPACITY = 32 };
 
 enum PacketType {
     PACKET_FRAME_STRIPE = 1,
@@ -50,9 +57,33 @@ typedef struct Peer {
     const char* ip;
 } Peer;
 
+typedef struct {
+    int pressed;
+    unsigned char key;
+} KeyEvent;
+
 uint8_t* buffer;
 Peer peer = {0};
+
+static KeyEvent key_queue[QUEUE_CAPACITY];
+unsigned int queue_write_index;
+unsigned int queue_read_index;
+unsigned int queue_count;
+static uint16_t previous_button_state;
+
 struct timespec start;
+
+static const unsigned char doom_keys[9] = {
+    KEY_UPARROW,
+    KEY_DOWNARROW,
+    KEY_LEFTARROW,
+    KEY_RIGHTARROW,
+    KEY_ENTER,
+    KEY_USE,
+    KEY_RSHIFT,
+    KEY_ESCAPE,
+    KEY_FIRE,
+};
 
 int connect_to_peer(uint16_t port, const char* ip, Peer* peer) {
     // 1. Create a UDP socket (SOCK_DGRAM)
@@ -172,6 +203,64 @@ void send_frame(pixel_t* framebuffer) {
     }
 }
 
+// Queue operations
+static int add_key_to_queue(int pressed, unsigned char key) {
+    if(queue_count == QUEUE_CAPACITY) {
+        return 0;
+    }
+
+    key_queue[queue_write_index].pressed = pressed;
+    key_queue[queue_write_index].key = key;
+
+    queue_write_index = (queue_write_index + 1) % QUEUE_CAPACITY;
+    ++queue_count;
+    return 1;
+}
+
+static int remove_key_from_queue(KeyEvent *event) {
+    if(queue_count == 0) {
+        return 0;
+    }
+    *event = key_queue[queue_read_index];
+    queue_read_index = (queue_read_index + 1) % QUEUE_CAPACITY;
+    --queue_count;
+    return 1;
+}
+
+static void process_button_state(uint16_t state) {
+    uint16_t changed = state ^ previous_button_state;
+
+    for(unsigned int bit = 0; bit < 9; ++bit) {
+        uint16_t mask = (uint16_t)(1u << bit);
+        if(changed & mask) {
+            add_key_to_queue((state & mask) != 0, doom_keys[bit]);
+        }
+    }
+    previous_button_state = state;
+}
+
+static void poll_input(void) {
+    while (1) {
+        uint8_t payload[2];
+
+        ssize_t received = recvfrom(
+            peer.socketfd,
+            payload,
+            sizeof(payload),
+            MSG_DONTWAIT,
+            NULL,
+            NULL
+        );
+
+        if (received != sizeof(payload)) {
+            break;
+        }
+
+        uint16_t state = ((uint16_t)payload[0] << 8) | payload[1];
+        process_button_state(state);
+    }
+}
+
 void DG_Init(void) {
     const size_t batch_size = DOOMGENERIC_RESX * (size_t)LINES_IN_BATCH;
     buffer = (uint8_t*)malloc(batch_size + HEADER_LEN);
@@ -180,11 +269,12 @@ void DG_Init(void) {
         exit(EXIT_FAILURE);
     }
 
-    int rc = connect_to_peer(5000, "192.168.67.2", &peer);
+    int rc = connect_to_peer(UDP_PORT, UDP_ADDR, &peer);
     if(rc < 0) {
         printf("Failed to connect to peer\n");
         exit(EXIT_FAILURE);
     }
+
     // Continue init
 }
 
@@ -214,7 +304,13 @@ void DG_SetWindowTitle(const char *title) {
 }
 
 int DG_GetKey(int *pressed, unsigned char *key) {
-    (void)pressed;
-    (void)key;
-    return 0;
+    poll_input();
+
+    KeyEvent event;
+    if(!remove_key_from_queue(&event)) {
+        return 0;
+    }
+    *pressed = event.pressed;
+    *key = event.key;
+    return 1;
 }
