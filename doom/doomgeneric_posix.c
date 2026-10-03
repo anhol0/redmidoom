@@ -1,4 +1,4 @@
-#include "doomgeneric/doomgeneric/doomgeneric.h"
+#include "doomgeneric.h"
 #include "doomtype.h"
 #include "doomkeys.h"
 #include "i_video.h"

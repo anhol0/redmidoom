@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.20)
 
 project(redmidoom VERSION 0.1 LANGUAGES C)
 
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR mipsel)
+set(CMAKE_C_COMPILER mipsel-openwrt-linux-musl-gcc)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(DOOMGENERIC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doomgeneric/doomgeneric")
