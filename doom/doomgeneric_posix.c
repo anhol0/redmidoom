@@ -27,7 +27,7 @@ extern boolean palette_changed;
 extern struct color colors[256];
 
 #define UDP_PORT 5000
-#define UDP_ADDR "192.168.1.67"
+#define UDP_ADDR "192.168.1.69"
 
 enum { HEADER_LEN     = 24 };
 enum { QUEUE_CAPACITY = 32 };
